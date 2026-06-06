@@ -9,6 +9,7 @@
 #include "host/ble_hs_id.h"
 #include "host/util/util.h"
 #include "libs/gatt.h"
+#include "libs/nvs.h"
 #include "nimble/nimble_npl.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -23,9 +24,6 @@ StackType_t bleTaskStack[BLE_STACK_SIZE];
 static uint8_t own_addr_type = BLE_OWN_ADDR_PUBLIC;
 static struct ble_hs_adv_fields resp_data;
 static uint32_t passkey = PASSKEY_NOT_ACTIVE;
-static const uint8_t bitclock_static_random_addr[6] = {
-    0x09, 0xc4, 0x72, 0xda, 0xb7, 0xf4,
-};
 
 static struct ble_npl_event subscription_event_temp;
 static gatt_chr_subscription_t active_temp_subscription = {0};
@@ -302,9 +300,15 @@ static void ble_reset_cb(int reason) {
 
 static void ble_sync_cb(void) {
   int rc;
+  uint8_t static_random_addr[6] = {0};
 
-  // Force a new BLE identity so central-side GATT caches are rebuilt.
-  rc = ble_hs_id_set_rnd(bitclock_static_random_addr);
+  rc = bitclock_nvs_get_or_create_ble_static_addr(static_random_addr);
+  if (rc != ESP_OK) {
+    ESP_LOGE(TAG, "Error loading BLE static random address; rc=%d", rc);
+    return;
+  }
+
+  rc = ble_hs_id_set_rnd(static_random_addr);
   if (rc != 0) {
     ESP_LOGE(TAG, "Error setting static random address; rc=%d", rc);
     return;

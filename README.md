@@ -25,6 +25,18 @@ Bitclock configurator at `/connect`.
 The firmware publishes Home Assistant MQTT discovery config and state for
 temperature, humidity, CO2, VOC index, and NOx index sensors.
 
+Known compatibility notes:
+
+- The current Home Assistant configurator discovers devices by the new Home
+  Assistant BLE service UUID. Stock firmware that only advertises the original
+  Bitclock service may not appear in the local `/connect` device picker.
+- The current Home Assistant firmware advertises the new Home Assistant service
+  UUID to avoid stale browser GATT caches. Older configurators that filter only
+  for the original Bitclock service may not discover updated devices.
+- The connect page can still show `0` for unavailable or malformed sensor BLE
+  values. Check the BLE reads panel before treating `0` CO2, humidity, VOC, or
+  NOx values as real readings.
+
 ## Firmware
 
 Source code for ESP32 using the ESP-IDF development framework.

@@ -1,5 +1,7 @@
 #include "nvs.h"
 
+#include "esp_random.h"
+
 #include <nvs.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -16,6 +18,7 @@ static const char *NVS_ID_HA_MQTT_ENABLED = "ha_mqtt_en";
 static const char *NVS_ID_HA_MQTT_URI = "ha_mqtt_uri";
 static const char *NVS_ID_HA_MQTT_USERNAME = "ha_mqtt_user";
 static const char *NVS_ID_HA_MQTT_PASSWORD = "ha_mqtt_pass";
+static const char *NVS_ID_BLE_STATIC_ADDR = "ble_addr";
 
 static bitclock_nvs_temp_unit_val_t temp_unit = BITCLOCK_NVS_TEMP_UNIT_VAL_NONE;
 static bitclock_nvs_clock_format_val_t clock_format =
@@ -45,6 +48,29 @@ static void copy_nvs_string(char *dst, size_t dst_size, const char *src,
     memcpy(dst, src, copy_len);
   }
   dst[copy_len] = '\0';
+}
+
+static bool ble_static_addr_is_valid(const uint8_t addr[6]) {
+  if ((addr[5] & 0xc0) != 0xc0) {
+    return false;
+  }
+
+  bool random_part_has_one = (addr[5] & 0x3f) != 0;
+  bool random_part_has_zero = (addr[5] & 0x3f) != 0x3f;
+
+  for (size_t i = 0; i < 5; i++) {
+    random_part_has_one = random_part_has_one || addr[i] != 0;
+    random_part_has_zero = random_part_has_zero || addr[i] != 0xff;
+  }
+
+  return random_part_has_one && random_part_has_zero;
+}
+
+static void generate_ble_static_addr(uint8_t addr[6]) {
+  do {
+    esp_fill_random(addr, 6);
+    addr[5] = (addr[5] & 0x3f) | 0xc0;
+  } while (!ble_static_addr_is_valid(addr));
 }
 
 esp_err_t bitclock_nvs_init() {
@@ -265,6 +291,44 @@ const char *bitclock_nvs_get_ha_mqtt_uri() { return ha_mqtt_uri; }
 const char *bitclock_nvs_get_ha_mqtt_username() { return ha_mqtt_username; }
 
 const char *bitclock_nvs_get_ha_mqtt_password() { return ha_mqtt_password; }
+
+esp_err_t bitclock_nvs_get_or_create_ble_static_addr(uint8_t addr[6]) {
+  nvs_handle_t handle;
+  esp_err_t err;
+  size_t addr_size = 0;
+
+  err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  err = nvs_get_blob(handle, NVS_ID_BLE_STATIC_ADDR, NULL, &addr_size);
+  if (err == ESP_OK && addr_size == 6) {
+    size_t read_size = 6;
+    err = nvs_get_blob(handle, NVS_ID_BLE_STATIC_ADDR, addr, &read_size);
+    if (err != ESP_OK) {
+      nvs_close(handle);
+      return err;
+    }
+    if (err == ESP_OK && ble_static_addr_is_valid(addr)) {
+      nvs_close(handle);
+      return ESP_OK;
+    }
+  } else if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    nvs_close(handle);
+    return err;
+  }
+
+  generate_ble_static_addr(addr);
+
+  err = nvs_set_blob(handle, NVS_ID_BLE_STATIC_ADDR, addr, 6);
+  if (err == ESP_OK) {
+    err = nvs_commit(handle);
+  }
+  nvs_close(handle);
+
+  return err;
+}
 
 esp_err_t bitclock_nvs_set_ha_mqtt_config(bool enabled, const char *uri,
                                           size_t uri_size,

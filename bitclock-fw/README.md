@@ -98,6 +98,14 @@ For released changes, prefer one of these approaches:
 - Change the BLE identity address when a breaking GATT table change must be
   discovered by already-paired clients.
 
+The firmware uses a static-random BLE identity address so central devices can
+cache bonds and GATT services. That address is generated once per physical
+device, stored in NVS under `ble_addr`, and reused on every boot. If NVS is
+erased, the next boot generates a new valid static-random address. Devices
+upgrading from firmware without `ble_addr` also generate this address on the
+first boot after flashing, so users may need to forget and re-pair once after
+that update.
+
 Home Assistant MQTT settings are exposed through a separate service UUID,
 `1f44d9a0-4f71-4c9d-9ce8-5f1a950cc1dd`, and the firmware currently advertises
 that service so Web Bluetooth discovers a fresh service table. The MQTT config

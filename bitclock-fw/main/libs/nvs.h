@@ -54,3 +54,5 @@ esp_err_t bitclock_nvs_set_ha_mqtt_config(bool enabled, const char *uri,
                                           size_t username_size,
                                           const char *password,
                                           size_t password_size);
+
+esp_err_t bitclock_nvs_get_or_create_ble_static_addr(uint8_t addr[6]);
