@@ -1,4 +1,10 @@
+#pragma once
+
 #include "esp_err.h"
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 typedef uint8_t bitclock_nvs_temp_unit_val_t;
 typedef uint8_t bitclock_nvs_clock_format_val_t;
@@ -15,6 +21,10 @@ typedef uint8_t bitclock_nvs_app_selection_val_t;
 #define BITCLOCK_NVS_APP_SELECTION_VAL_NONE 0
 #define BITCLOCK_NVS_APP_SELECTION_VAL_CLOCK 1
 #define BITCLOCK_NVS_APP_SELECTION_VAL_WEATHER 2
+
+#define BITCLOCK_NVS_HA_MQTT_URI_MAX_LEN 128
+#define BITCLOCK_NVS_HA_MQTT_USERNAME_MAX_LEN 64
+#define BITCLOCK_NVS_HA_MQTT_PASSWORD_MAX_LEN 64
 
 esp_err_t bitclock_nvs_init();
 
@@ -33,3 +43,14 @@ esp_err_t bitclock_nvs_set_clock_format(bitclock_nvs_clock_format_val_t format);
 bitclock_nvs_app_selection_val_t bitclock_nvs_get_app_selection();
 esp_err_t
 bitclock_nvs_set_app_selection(bitclock_nvs_app_selection_val_t format);
+
+bool bitclock_nvs_get_ha_mqtt_enabled();
+const char *bitclock_nvs_get_ha_mqtt_uri();
+const char *bitclock_nvs_get_ha_mqtt_username();
+const char *bitclock_nvs_get_ha_mqtt_password();
+esp_err_t bitclock_nvs_set_ha_mqtt_config(bool enabled, const char *uri,
+                                          size_t uri_size,
+                                          const char *username,
+                                          size_t username_size,
+                                          const char *password,
+                                          size_t password_size);

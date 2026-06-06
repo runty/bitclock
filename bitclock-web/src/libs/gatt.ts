@@ -1,4 +1,5 @@
 let SERVICE_UUID = "ec2f3aa0-4ed8-71bd-f147-b2bc37195232";
+let HOME_ASSISTANT_SERVICE_UUID = "1f44d9a0-4f71-4c9d-9ce8-5f1a950cc1dd";
 
 let CHR_WIFI_UUID = "a5313036-a66e-e990-2147-49a7b1557044";
 let CHR_WIFI_STATUS_UUID = "32f4b3c3-d9b2-4d26-8da6-c9e88711b65d";
@@ -8,6 +9,8 @@ let CHR_OTA_SIZE_UUID = "c839db31-c8e7-4c59-938d-c4b46e7bc2a4";
 let CHR_OTA_DATA_UUID = "ed900bcc-2ed5-40b0-b33a-fe7483f254c7";
 
 let CHR_WEATHER_PATH_UUID = "32efee1d-9566-47e2-b880-0026d48c1f81";
+let CHR_HOME_ASSISTANT_MQTT_CONFIG_UUID =
+  "55940870-984a-4bbf-ae64-27b492ebd17e";
 
 let CHR_TEMPERATURE_UUID = 0x2a6e;
 let CHR_HUMIDITY_UUID = 0x2a6f;
@@ -38,6 +41,13 @@ type WifiStatus = {
   isStarted: boolean;
   isConnected: boolean;
 };
+
+type HomeAssistantMqttConfig = {
+  enabled: boolean;
+  uri: string;
+  username: string;
+  password: string;
+};
 let WIFI_IS_STARTED_VAL_BIT = 1;
 let WIFI_IS_CONNECTED_VAL_BIT = 1 << 1;
 
@@ -49,14 +59,35 @@ const parseWifiStatus = (value: DataView): WifiStatus => {
   };
 };
 
+const parseHomeAssistantMqttConfig = (
+  value: DataView,
+): HomeAssistantMqttConfig => {
+  let decoder = new TextDecoder();
+  let parts = decoder.decode(value).split("|");
+  return {
+    enabled: parts[0] == "1",
+    uri: parts[1] ?? "",
+    username: parts[2] ?? "",
+    password: parts[3] ?? "",
+  };
+};
+
+const serializeHomeAssistantMqttConfig = (
+  config: HomeAssistantMqttConfig,
+): string => {
+  return `${config.enabled ? "1" : "0"}|${config.uri}|${config.username}|${config.password}`;
+};
+
 export {
   SERVICE_UUID,
+  HOME_ASSISTANT_SERVICE_UUID,
   CHR_WIFI_UUID,
   CHR_WIFI_STATUS_UUID,
   CHR_FW_VERSION_UUID,
   CHR_OTA_SIZE_UUID,
   CHR_OTA_DATA_UUID,
   CHR_WEATHER_PATH_UUID,
+  CHR_HOME_ASSISTANT_MQTT_CONFIG_UUID,
   CHR_TEMPERATURE_UUID,
   CHR_HUMIDITY_UUID,
   CHR_CO2_UUID,
@@ -75,6 +106,8 @@ export {
   APP_SELECTION_VAL_CLOCK,
   APP_SELECTION_VAL_WEATHER,
   parseWifiStatus,
+  parseHomeAssistantMqttConfig,
+  serializeHomeAssistantMqttConfig,
 };
 
-export type { WifiStatus };
+export type { WifiStatus, HomeAssistantMqttConfig };

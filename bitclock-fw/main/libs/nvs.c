@@ -1,6 +1,8 @@
 #include "nvs.h"
 
 #include <nvs.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 static const char *NVS_NAMESPACE =
@@ -10,6 +12,10 @@ static const char *NVS_ID_TEMP_UNIT = "temp_unit";
 static const char *NVS_ID_CLOCK_FORMAT = "clk_fmt";
 static const char *NVS_ID_WEATHER_PATH = "wea_path";
 static const char *NVS_ID_APP_SELECTION = "app";
+static const char *NVS_ID_HA_MQTT_ENABLED = "ha_mqtt_en";
+static const char *NVS_ID_HA_MQTT_URI = "ha_mqtt_uri";
+static const char *NVS_ID_HA_MQTT_USERNAME = "ha_mqtt_user";
+static const char *NVS_ID_HA_MQTT_PASSWORD = "ha_mqtt_pass";
 
 static bitclock_nvs_temp_unit_val_t temp_unit = BITCLOCK_NVS_TEMP_UNIT_VAL_NONE;
 static bitclock_nvs_clock_format_val_t clock_format =
@@ -19,6 +25,27 @@ static bitclock_nvs_app_selection_val_t app_selection =
 
 static const char *timezone_str = NULL;
 static const char *weather_path_str = NULL;
+static bool ha_mqtt_enabled = false;
+static char ha_mqtt_uri[BITCLOCK_NVS_HA_MQTT_URI_MAX_LEN] = {0};
+static char ha_mqtt_username[BITCLOCK_NVS_HA_MQTT_USERNAME_MAX_LEN] = {0};
+static char ha_mqtt_password[BITCLOCK_NVS_HA_MQTT_PASSWORD_MAX_LEN] = {0};
+
+static void copy_nvs_string(char *dst, size_t dst_size, const char *src,
+                            size_t src_size) {
+  if (dst_size == 0) {
+    return;
+  }
+
+  size_t copy_len = 0;
+  if (src != NULL && src_size > 0) {
+    copy_len = strnlen(src, src_size);
+    if (copy_len >= dst_size) {
+      copy_len = dst_size - 1;
+    }
+    memcpy(dst, src, copy_len);
+  }
+  dst[copy_len] = '\0';
+}
 
 esp_err_t bitclock_nvs_init() {
   nvs_handle_t handle;
@@ -75,6 +102,34 @@ esp_err_t bitclock_nvs_init() {
 
   // App selection
   err = nvs_get_u8(handle, NVS_ID_APP_SELECTION, &app_selection);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    return err;
+  }
+
+  // Home Assistant MQTT
+  uint8_t ha_mqtt_enabled_val = 0;
+  err = nvs_get_u8(handle, NVS_ID_HA_MQTT_ENABLED, &ha_mqtt_enabled_val);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    return err;
+  }
+  ha_mqtt_enabled = ha_mqtt_enabled_val != 0;
+
+  required_size = sizeof(ha_mqtt_uri);
+  err = nvs_get_str(handle, NVS_ID_HA_MQTT_URI, ha_mqtt_uri, &required_size);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    return err;
+  }
+
+  required_size = sizeof(ha_mqtt_username);
+  err = nvs_get_str(handle, NVS_ID_HA_MQTT_USERNAME, ha_mqtt_username,
+                    &required_size);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    return err;
+  }
+
+  required_size = sizeof(ha_mqtt_password);
+  err = nvs_get_str(handle, NVS_ID_HA_MQTT_PASSWORD, ha_mqtt_password,
+                    &required_size);
   if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
     return err;
   }
@@ -199,6 +254,65 @@ esp_err_t bitclock_nvs_set_app_selection(
   app_selection = new_app_selection;
 
   nvs_close(handle);
+
+  return ESP_OK;
+}
+
+bool bitclock_nvs_get_ha_mqtt_enabled() { return ha_mqtt_enabled; }
+
+const char *bitclock_nvs_get_ha_mqtt_uri() { return ha_mqtt_uri; }
+
+const char *bitclock_nvs_get_ha_mqtt_username() { return ha_mqtt_username; }
+
+const char *bitclock_nvs_get_ha_mqtt_password() { return ha_mqtt_password; }
+
+esp_err_t bitclock_nvs_set_ha_mqtt_config(bool enabled, const char *uri,
+                                          size_t uri_size,
+                                          const char *username,
+                                          size_t username_size,
+                                          const char *password,
+                                          size_t password_size) {
+  nvs_handle_t handle;
+  esp_err_t err;
+
+  char next_uri[BITCLOCK_NVS_HA_MQTT_URI_MAX_LEN] = {0};
+  char next_username[BITCLOCK_NVS_HA_MQTT_USERNAME_MAX_LEN] = {0};
+  char next_password[BITCLOCK_NVS_HA_MQTT_PASSWORD_MAX_LEN] = {0};
+
+  copy_nvs_string(next_uri, sizeof(next_uri), uri, uri_size);
+  copy_nvs_string(next_username, sizeof(next_username), username,
+                  username_size);
+  copy_nvs_string(next_password, sizeof(next_password), password,
+                  password_size);
+
+  err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  err = nvs_set_u8(handle, NVS_ID_HA_MQTT_ENABLED, enabled ? 1 : 0);
+  if (err == ESP_OK) {
+    err = nvs_set_str(handle, NVS_ID_HA_MQTT_URI, next_uri);
+  }
+  if (err == ESP_OK) {
+    err = nvs_set_str(handle, NVS_ID_HA_MQTT_USERNAME, next_username);
+  }
+  if (err == ESP_OK) {
+    err = nvs_set_str(handle, NVS_ID_HA_MQTT_PASSWORD, next_password);
+  }
+  if (err == ESP_OK) {
+    err = nvs_commit(handle);
+  }
+  nvs_close(handle);
+
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  ha_mqtt_enabled = enabled;
+  memcpy(ha_mqtt_uri, next_uri, sizeof(ha_mqtt_uri));
+  memcpy(ha_mqtt_username, next_username, sizeof(ha_mqtt_username));
+  memcpy(ha_mqtt_password, next_password, sizeof(ha_mqtt_password));
 
   return ESP_OK;
 }

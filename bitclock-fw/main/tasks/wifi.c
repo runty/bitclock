@@ -7,6 +7,7 @@
 #include "esp_wifi.h"
 #include "libs/http_buffer.h"
 #include "tasks/ble.h"
+#include "tasks/home_assistant.h"
 #include "tasks/weather.h"
 
 static const char *TAG = "wifi";
@@ -38,6 +39,9 @@ static void event_handler(void *arg, esp_event_base_t event_base,
       break;
     case WIFI_EVENT_STA_DISCONNECTED:
       ESP_LOGI(TAG, "Disconnected. Connecting to the AP again...");
+      wifi_has_ip_val = false;
+      ble_notify_wifi_status_update();
+      home_assistant_notify_config_update();
       xEventGroupSetBits(wifi_event_group_handle, WIFI_READY_TO_CONNECT_EVENT);
       break;
     default:
@@ -53,6 +57,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
       xEventGroupSetBits(weather_event_group_handle,
                          WEATHER_EVENT_WIFI_CONNECTED);
       ble_notify_wifi_status_update();
+      home_assistant_notify_config_update();
       break;
     case IP_EVENT_STA_LOST_IP:
       wifi_has_ip_val = false;

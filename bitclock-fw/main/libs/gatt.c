@@ -16,6 +16,7 @@
 #include "tasks/scd4x.h"
 #include "tasks/sgp4x.h"
 #include "tasks/sht4x.h"
+#include "tasks/home_assistant.h"
 #include "tasks/weather.h"
 #include "tasks/wifi.h"
 
@@ -25,6 +26,11 @@ static const char *TAG = "gatt";
 const ble_uuid128_t gatt_svr_svc_uuid =
     BLE_UUID128_INIT(0x32, 0x52, 0x19, 0x37, 0xbc, 0xb2, 0x47, 0xf1, 0xbd, 0x71,
                      0xd8, 0x4e, 0xa0, 0x3a, 0x2f, 0xec);
+
+// 1f44d9a0-4f71-4c9d-9ce8-5f1a950cc1dd
+const ble_uuid128_t gatt_svr_ha_svc_uuid =
+    BLE_UUID128_INIT(0xdd, 0xc1, 0x0c, 0x95, 0x1a, 0x5f, 0xe8, 0x9c, 0x9d, 0x4c,
+                     0x71, 0x4f, 0xa0, 0xd9, 0x44, 0x1f);
 
 /* A characteristic that can be subscribed to */
 #define WIFI_LENGTH                                                            \
@@ -112,6 +118,19 @@ static const ble_uuid128_t gatt_svr_chr_weather_path_uuid =
                      0x66, 0x95, 0x1d, 0xee, 0xef, 0x32);
 uint16_t gatt_svr_chr_weather_path_val_handle;
 char gatt_svr_chr_weather_path_val[64];
+
+// Home Assistant MQTT config
+// 55940870-984a-4bbf-ae64-27b492ebd17e
+static const ble_uuid128_t gatt_svr_chr_ha_mqtt_config_uuid =
+    BLE_UUID128_INIT(0x7e, 0xd1, 0xeb, 0x92, 0xb4, 0x27, 0x64, 0xae, 0xbf, 0x4b,
+                     0x4a, 0x98, 0x70, 0x08, 0x94, 0x55);
+uint16_t gatt_svr_chr_ha_mqtt_config_legacy_val_handle;
+uint16_t gatt_svr_chr_ha_mqtt_config_val_handle;
+#define HA_MQTT_CONFIG_LENGTH                                                \
+  (1 + 1 + BITCLOCK_NVS_HA_MQTT_URI_MAX_LEN + 1 +                            \
+   BITCLOCK_NVS_HA_MQTT_USERNAME_MAX_LEN + 1 +                                \
+   BITCLOCK_NVS_HA_MQTT_PASSWORD_MAX_LEN + 1)
+char gatt_svr_chr_ha_mqtt_config_val[HA_MQTT_CONFIG_LENGTH];
 
 static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
                            struct ble_gatt_access_ctxt *ctxt, void *arg);
@@ -242,6 +261,35 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
                     .val_handle = &gatt_svr_chr_firmware_version_val_handle,
                 },
                 {
+                    .uuid = &gatt_svr_chr_ha_mqtt_config_uuid.u,
+                    .access_cb = gatt_svc_access,
+                    .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC |
+                             BLE_GATT_CHR_F_WRITE_AUTHEN | BLE_GATT_CHR_F_READ |
+                             BLE_GATT_CHR_F_READ_ENC |
+                             BLE_GATT_CHR_F_READ_AUTHEN,
+                    .val_handle =
+                        &gatt_svr_chr_ha_mqtt_config_legacy_val_handle,
+                },
+                {
+                    0, /* No more characteristics in this service. */
+                }},
+    },
+
+    {
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = &gatt_svr_ha_svc_uuid.u,
+        .characteristics =
+            (struct ble_gatt_chr_def[]){
+                {
+                    .uuid = &gatt_svr_chr_ha_mqtt_config_uuid.u,
+                    .access_cb = gatt_svc_access,
+                    .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC |
+                             BLE_GATT_CHR_F_WRITE_AUTHEN | BLE_GATT_CHR_F_READ |
+                             BLE_GATT_CHR_F_READ_ENC |
+                             BLE_GATT_CHR_F_READ_AUTHEN,
+                    .val_handle = &gatt_svr_chr_ha_mqtt_config_val_handle,
+                },
+                {
                     0, /* No more characteristics in this service. */
                 }},
     },
@@ -352,6 +400,49 @@ static void enqueue_wifi_creds_update() {
   xEventGroupSetBits(wifi_event_group_handle, WIFI_CREDENTIALS_UPDATED_EVENT);
 }
 
+static int update_ha_mqtt_config() {
+  char *enabled_str = gatt_svr_chr_ha_mqtt_config_val;
+  char *uri = strchr(enabled_str, '|');
+  if (uri == NULL) {
+    ESP_LOGE(TAG, "Invalid Home Assistant MQTT config");
+    return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+  }
+  *uri = '\0';
+  uri++;
+
+  char *username = strchr(uri, '|');
+  if (username != NULL) {
+    *username = '\0';
+    username++;
+  } else {
+    username = "";
+  }
+
+  char *password = strchr(username, '|');
+  if (password != NULL) {
+    *password = '\0';
+    password++;
+  } else {
+    password = "";
+  }
+
+  bool enabled = enabled_str[0] == '1';
+
+  ESP_LOGI(TAG, "Home Assistant MQTT %s: %s",
+           enabled ? "enabled" : "disabled", uri);
+
+  esp_err_t err = bitclock_nvs_set_ha_mqtt_config(
+      enabled, uri, strlen(uri) + 1, username, strlen(username) + 1, password,
+      strlen(password) + 1);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to save Home Assistant MQTT config: %d", err);
+    return BLE_ATT_ERR_UNLIKELY;
+  }
+
+  home_assistant_notify_config_update();
+  return 0;
+}
+
 static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
                            struct ble_gatt_access_ctxt *ctxt, void *arg) {
   int rc;
@@ -396,6 +487,19 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         weather_path = "";
       }
       rc = os_mbuf_append(ctxt->om, weather_path, strlen(weather_path));
+      return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    } else if (attr_handle == gatt_svr_chr_ha_mqtt_config_val_handle ||
+               attr_handle == gatt_svr_chr_ha_mqtt_config_legacy_val_handle) {
+      const char *uri = bitclock_nvs_get_ha_mqtt_uri();
+      const char *username = bitclock_nvs_get_ha_mqtt_username();
+      const char *password = bitclock_nvs_get_ha_mqtt_password();
+      snprintf(gatt_svr_chr_ha_mqtt_config_val,
+               sizeof(gatt_svr_chr_ha_mqtt_config_val), "%u|%s|%s|%s",
+               bitclock_nvs_get_ha_mqtt_enabled() ? 1 : 0,
+               uri == NULL ? "" : uri, username == NULL ? "" : username,
+               password == NULL ? "" : password);
+      rc = os_mbuf_append(ctxt->om, gatt_svr_chr_ha_mqtt_config_val,
+                          strlen(gatt_svr_chr_ha_mqtt_config_val));
       return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
     } else if (attr_handle == gatt_svr_chr_wifi_status_val_handle) {
       static uint8_t wifi_status;
@@ -475,6 +579,19 @@ static int gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
       }
       xEventGroupSetBits(weather_event_group_handle,
                          WEATHER_EVENT_LOCATION_CHANGED);
+      return rc;
+    } else if (attr_handle == gatt_svr_chr_ha_mqtt_config_val_handle ||
+               attr_handle == gatt_svr_chr_ha_mqtt_config_legacy_val_handle) {
+      rc = gatt_svr_write(ctxt->om, // data
+                          1,        // min length
+                          sizeof(gatt_svr_chr_ha_mqtt_config_val) -
+                              1, // max length - 1 for null terminator
+                          &gatt_svr_chr_ha_mqtt_config_val, // dest
+                          &copy_len);
+      if (rc == 0) {
+        gatt_svr_chr_ha_mqtt_config_val[copy_len] = 0;
+        rc = update_ha_mqtt_config();
+      }
       return rc;
     } else if (attr_handle == gatt_svr_chr_temperature_unit_val_handle) {
       rc = gatt_svr_write(
@@ -566,23 +683,20 @@ void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
 
   switch (ctxt->op) {
   case BLE_GATT_REGISTER_OP_SVC:
-    MODLOG_DFLT(DEBUG, "registered service %s with handle=%d\n",
-                ble_uuid_to_str(ctxt->svc.svc_def->uuid, buf),
-                ctxt->svc.handle);
+    ESP_LOGI(TAG, "registered service %s with handle=%d",
+             ble_uuid_to_str(ctxt->svc.svc_def->uuid, buf), ctxt->svc.handle);
     break;
 
   case BLE_GATT_REGISTER_OP_CHR:
-    MODLOG_DFLT(DEBUG,
-                "registering characteristic %s with "
-                "def_handle=%d val_handle=%d\n",
-                ble_uuid_to_str(ctxt->chr.chr_def->uuid, buf),
-                ctxt->chr.def_handle, ctxt->chr.val_handle);
+    ESP_LOGI(TAG,
+             "registered characteristic %s with def_handle=%d val_handle=%d",
+             ble_uuid_to_str(ctxt->chr.chr_def->uuid, buf),
+             ctxt->chr.def_handle, ctxt->chr.val_handle);
     break;
 
   case BLE_GATT_REGISTER_OP_DSC:
-    MODLOG_DFLT(DEBUG, "registering descriptor %s with handle=%d\n",
-                ble_uuid_to_str(ctxt->dsc.dsc_def->uuid, buf),
-                ctxt->dsc.handle);
+    ESP_LOGI(TAG, "registered descriptor %s with handle=%d",
+             ble_uuid_to_str(ctxt->dsc.dsc_def->uuid, buf), ctxt->dsc.handle);
     break;
 
   default:

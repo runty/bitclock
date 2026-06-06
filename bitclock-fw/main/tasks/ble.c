@@ -23,6 +23,9 @@ StackType_t bleTaskStack[BLE_STACK_SIZE];
 static uint8_t own_addr_type = BLE_OWN_ADDR_PUBLIC;
 static struct ble_hs_adv_fields resp_data;
 static uint32_t passkey = PASSKEY_NOT_ACTIVE;
+static const uint8_t bitclock_static_random_addr[6] = {
+    0x09, 0xc4, 0x72, 0xda, 0xb7, 0xf4,
+};
 
 static struct ble_npl_event subscription_event_temp;
 static gatt_chr_subscription_t active_temp_subscription = {0};
@@ -272,7 +275,7 @@ static void ble_advertise() {
   fields.name_len = strlen(name);
   fields.name_is_complete = 0;
 
-  fields.uuids128 = &gatt_svr_svc_uuid;
+  fields.uuids128 = &gatt_svr_ha_svc_uuid;
   fields.num_uuids128 = 1;
   fields.uuids128_is_complete = 1;
 
@@ -300,21 +303,21 @@ static void ble_reset_cb(int reason) {
 static void ble_sync_cb(void) {
   int rc;
 
-  // TODO: Resolvable public address for privacy?
-  rc = ble_hs_util_ensure_addr(0);
+  // Force a new BLE identity so central-side GATT caches are rebuilt.
+  rc = ble_hs_id_set_rnd(bitclock_static_random_addr);
   if (rc != 0) {
-    ESP_LOGE(TAG, "Error loading address");
+    ESP_LOGE(TAG, "Error setting static random address; rc=%d", rc);
     return;
   }
 
-  rc = ble_hs_id_infer_auto(0, &own_addr_type);
-  if (rc != 0) {
-    ESP_LOGE(TAG, "error determining address type; rc=%d", rc);
-    return;
-  }
+  own_addr_type = BLE_OWN_ADDR_RANDOM;
 
   uint8_t addr_val[6] = {0};
-  rc = ble_hs_id_copy_addr(own_addr_type, addr_val, NULL);
+  rc = ble_hs_id_copy_addr(BLE_ADDR_RANDOM, addr_val, NULL);
+  if (rc != 0) {
+    ESP_LOGE(TAG, "error copying random address; rc=%d", rc);
+    return;
+  }
   print_addr(addr_val);
 
   // Increase the preferred MTU size to max
@@ -401,7 +404,7 @@ void ble_task_run(void *pvParameters) {
 
   ble_hs_cfg.reset_cb = ble_reset_cb;
   ble_hs_cfg.sync_cb = ble_sync_cb;
-  // ble_hs_cfg.gatts_register_cb = ble_gatts_register_cb;
+  ble_hs_cfg.gatts_register_cb = gatt_svr_register_cb;
   ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
 
   ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_DISP_ONLY;

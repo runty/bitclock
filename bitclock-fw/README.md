@@ -84,6 +84,21 @@ Then go to VSCode and "Start Debugging" (F5)
 
 ### Bluetooth GATT attributes
 
-If you edit GATT attributes, the web configurator may stop working. This is doing some kind of caching of GATT attributes by service ID.
+Browsers and operating systems can cache GATT attributes by device identity and
+service UUID. If you edit the attribute table for an existing service, the web
+configurator may keep seeing the old service layout even after reflashing.
 
-To resolve the issue, go into Bluetooth settings and "Forget Device", then re-pair it to refresh the GATT cache.
+To resolve local cache issues during development, go into Bluetooth settings and
+"Forget Device", then re-pair it to refresh the GATT cache.
+
+For released changes, prefer one of these approaches:
+
+- Preserve existing characteristic ordering in the original Bitclock service.
+- Add new features to a new service UUID.
+- Change the BLE identity address when a breaking GATT table change must be
+  discovered by already-paired clients.
+
+Home Assistant MQTT settings are exposed through a separate service UUID,
+`1f44d9a0-4f71-4c9d-9ce8-5f1a950cc1dd`, and the firmware currently advertises
+that service so Web Bluetooth discovers a fresh service table. The MQTT config
+characteristic UUID is `55940870-984a-4bbf-ae64-27b492ebd17e`.

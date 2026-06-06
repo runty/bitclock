@@ -1,6 +1,9 @@
 #include "host/ble_uuid.h"
 
+struct ble_gatt_register_ctxt;
+
 extern const ble_uuid128_t gatt_svr_svc_uuid;
+extern const ble_uuid128_t gatt_svr_ha_svc_uuid;
 
 extern uint16_t gatt_svr_chr_wifi_val_handle;
 extern uint16_t gatt_svr_chr_ota_size_val_handle;
@@ -27,4 +30,5 @@ void notify_nox_index_update(struct ble_npl_event *ev);
 void notify_wifi_status_update(struct ble_npl_event *ev);
 
 int gatt_svr_init(void);
+void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg);
 void gatt_notify_temp();

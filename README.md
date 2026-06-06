@@ -9,6 +9,22 @@ Available for purchase in USA @ https://bitclock.io
 
 Visit https://bitclock.io/connect to configure your existing device
 
+## Home Assistant
+
+Bitclock can report air quality readings to Home Assistant over MQTT. In Home
+Assistant, enable the MQTT integration with discovery enabled, then use the
+Bitclock configurator at `/connect`.
+
+1. Flash firmware with Home Assistant MQTT support.
+2. Open the configurator in Chrome and connect to the device named `bclk`.
+3. Enable MQTT reporting.
+4. Enter the broker URI, for example `mqtt://homeassistant.local:1883`.
+5. Enter MQTT broker credentials. Home Assistant long-lived access tokens are
+   not MQTT credentials.
+
+The firmware publishes Home Assistant MQTT discovery config and state for
+temperature, humidity, CO2, VOC index, and NOx index sensors.
+
 ## Firmware
 
 Source code for ESP32 using the ESP-IDF development framework.

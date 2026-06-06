@@ -5,12 +5,13 @@ import React from "react";
 export default function Logo() {
   return (
     <Center>
-      <Box w={{ base: 250, md: 400, xl: 600 }}>
+      <Box w="100%">
         <Link href="/" style={{ color: "rgb(41, 41, 41)" }}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 29 7"
             shapeRendering="crispEdges"
+            style={{ display: "block", width: "100%", height: "auto" }}
           >
             <path
               stroke="currentColor"

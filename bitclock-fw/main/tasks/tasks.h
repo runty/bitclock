@@ -16,6 +16,7 @@
 #define WIFI_TASK_ENABLED 1
 #define BLE_TASK_ENABLED 1
 #define WEATHER_TASK_ENABLED 1
+#define HOME_ASSISTANT_TASK_ENABLED 1
 
 //
 // Task objects
@@ -63,4 +64,9 @@ extern TaskHandle_t bleTask;
 #ifdef WEATHER_TASK_ENABLED
 #define WEATHER_TASK_PRIORITY 10
 extern TaskHandle_t weatherTask;
+#endif
+
+#ifdef HOME_ASSISTANT_TASK_ENABLED
+#define HOME_ASSISTANT_TASK_PRIORITY 5
+extern TaskHandle_t homeAssistantTask;
 #endif

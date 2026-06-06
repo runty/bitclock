@@ -16,6 +16,7 @@
 
 #include "tasks/ble.h"
 #include "tasks/eink_display.h"
+#include "tasks/home_assistant.h"
 #include "tasks/led.h"
 #include "tasks/scd4x.h"
 #include "tasks/sgp4x.h"
@@ -105,8 +106,8 @@ void app_main(void) {
                                 SGP4X_STACK_SIZE,    // ulStackDepth
                                 (void *)1,           // pvParamters
                                 SGP4X_TASK_PRIORITY, // uxPriority
-                                sgp4xTaskStack,      // puxStackBuffer
-                                &sgp4xTaskBuffer     // pxTaskBuffer
+                               sgp4xTaskStack,      // puxStackBuffer
+                               &sgp4xTaskBuffer     // pxTaskBuffer
   );
 #endif
 
@@ -137,6 +138,17 @@ void app_main(void) {
                                   WEATHER_TASK_PRIORITY, // uxPriority
                                   weatherTaskStack,      // puxStackBuffer
                                   &weatherTaskBuffer     // pxTaskBuffer
+  );
+#endif
+
+#ifdef HOME_ASSISTANT_TASK_ENABLED
+  homeAssistantTask = xTaskCreateStatic(
+      home_assistant_task_run, "home-assistant",
+      HOME_ASSISTANT_STACK_SIZE,    // ulStackDepth
+      (void *)1,                    // pvParamters
+      HOME_ASSISTANT_TASK_PRIORITY, // uxPriority
+      homeAssistantTaskStack,       // puxStackBuffer
+      &homeAssistantTaskBuffer      // pxTaskBuffer
   );
 #endif
 

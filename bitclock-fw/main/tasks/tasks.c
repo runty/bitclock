@@ -32,3 +32,7 @@ TaskHandle_t bleTask;
 #ifdef WEATHER_TASK_ENABLED
 TaskHandle_t weatherTask;
 #endif
+
+#ifdef HOME_ASSISTANT_TASK_ENABLED
+TaskHandle_t homeAssistantTask;
+#endif
