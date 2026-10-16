@@ -25,7 +25,7 @@ Bitclock configurator at `/connect`.
 The firmware publishes Home Assistant MQTT discovery for:
 
 - Sensors: temperature, humidity, CO2, VOC index, NOx index and the air quality
-  alert the display shows (`None`, `CO2`, `VOC`, `NOx`, `Humid`, `Dry`, ...).
+  alert the display shows (`Clear`, `CO2`, `VOC`, `NOx`, `Humid`, `Dry`, ...).
 - Diagnostics: Wi-Fi signal, uptime, the last CO2 calibration correction, and
   the firmware version on the device page.
 - Controls: a temperature offset (-10.0 to +10.0 °C, saved on the device and

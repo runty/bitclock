@@ -354,7 +354,8 @@ static const char *alert_name(aqi_alert_reason_t reason) {
   case AQI_ALERT_COUNT:
     break;
   }
-  return "None";
+  // Not "None": Home Assistant's template rendering turns that into no value.
+  return "Clear";
 }
 
 static void publish_state() {
