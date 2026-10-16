@@ -19,6 +19,7 @@ static const char *NVS_ID_HA_MQTT_URI = "ha_mqtt_uri";
 static const char *NVS_ID_HA_MQTT_USERNAME = "ha_mqtt_user";
 static const char *NVS_ID_HA_MQTT_PASSWORD = "ha_mqtt_pass";
 static const char *NVS_ID_BLE_STATIC_ADDR = "ble_addr";
+static const char *NVS_ID_TEMP_OFFSET = "temp_off";
 
 static bitclock_nvs_temp_unit_val_t temp_unit = BITCLOCK_NVS_TEMP_UNIT_VAL_NONE;
 static bitclock_nvs_clock_format_val_t clock_format =
@@ -32,6 +33,9 @@ static bool ha_mqtt_enabled = false;
 static char ha_mqtt_uri[BITCLOCK_NVS_HA_MQTT_URI_MAX_LEN] = {0};
 static char ha_mqtt_username[BITCLOCK_NVS_HA_MQTT_USERNAME_MAX_LEN] = {0};
 static char ha_mqtt_password[BITCLOCK_NVS_HA_MQTT_PASSWORD_MAX_LEN] = {0};
+// User temperature correction in tenths of a degree C, on top of the built-in
+// enclosure calibration in tasks/sht4x.c.
+static int16_t temp_offset_tenths = 0;
 
 static void copy_nvs_string(char *dst, size_t dst_size, const char *src,
                             size_t src_size) {
@@ -156,6 +160,11 @@ esp_err_t bitclock_nvs_init() {
   required_size = sizeof(ha_mqtt_password);
   err = nvs_get_str(handle, NVS_ID_HA_MQTT_PASSWORD, ha_mqtt_password,
                     &required_size);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    return err;
+  }
+
+  err = nvs_get_i16(handle, NVS_ID_TEMP_OFFSET, &temp_offset_tenths);
   if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
     return err;
   }
@@ -397,6 +406,35 @@ esp_err_t bitclock_nvs_set_ha_mqtt_config(bool enabled, const char *uri,
   memcpy(ha_mqtt_uri, next_uri, sizeof(ha_mqtt_uri));
   memcpy(ha_mqtt_username, next_username, sizeof(ha_mqtt_username));
   memcpy(ha_mqtt_password, next_password, sizeof(ha_mqtt_password));
+
+  return ESP_OK;
+}
+
+int16_t bitclock_nvs_get_temp_offset_tenths() { return temp_offset_tenths; }
+
+esp_err_t bitclock_nvs_set_temp_offset_tenths(int16_t new_offset_tenths) {
+  if (new_offset_tenths < BITCLOCK_NVS_TEMP_OFFSET_MIN_TENTHS ||
+      new_offset_tenths > BITCLOCK_NVS_TEMP_OFFSET_MAX_TENTHS) {
+    return ESP_ERR_INVALID_ARG;
+  }
+
+  nvs_handle_t handle;
+  esp_err_t err;
+
+  err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &handle);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  err = nvs_set_i16(handle, NVS_ID_TEMP_OFFSET, new_offset_tenths);
+  if (err == ESP_OK) {
+    err = nvs_commit(handle);
+  }
+  nvs_close(handle);
+  if (err != ESP_OK) {
+    return err;
+  }
+  temp_offset_tenths = new_offset_tenths;
 
   return ESP_OK;
 }

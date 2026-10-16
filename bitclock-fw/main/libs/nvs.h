@@ -26,6 +26,9 @@ typedef uint8_t bitclock_nvs_app_selection_val_t;
 #define BITCLOCK_NVS_HA_MQTT_USERNAME_MAX_LEN 64
 #define BITCLOCK_NVS_HA_MQTT_PASSWORD_MAX_LEN 64
 
+#define BITCLOCK_NVS_TEMP_OFFSET_MIN_TENTHS -100
+#define BITCLOCK_NVS_TEMP_OFFSET_MAX_TENTHS 100
+
 esp_err_t bitclock_nvs_init();
 
 const char *bitclock_nvs_get_tz();
@@ -56,3 +59,7 @@ esp_err_t bitclock_nvs_set_ha_mqtt_config(bool enabled, const char *uri,
                                           size_t password_size);
 
 esp_err_t bitclock_nvs_get_or_create_ble_static_addr(uint8_t addr[6]);
+
+// Extra temperature correction in tenths of a degree C (-10.0 to +10.0).
+int16_t bitclock_nvs_get_temp_offset_tenths();
+esp_err_t bitclock_nvs_set_temp_offset_tenths(int16_t offset_tenths);

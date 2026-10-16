@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "freertos/semphr.h"
 #include "libs/i2c.h"
+#include "libs/nvs.h"
 #include "libs/sensor_utils.h"
 #include "pins.h"
 #include "tasks/ble.h"
@@ -161,6 +162,10 @@ esp_err_t sht4x_measure_high_precision() {
     // enclosure Observations:  29.06 deg C should be 25.61
     //                7.59 deg C should be 3.67
     degCEnclosureOffset = degC * 0.022 - 4.08;
+    // Per-device correction set from Home Assistant, e.g. against a reference
+    // sensor placed beside the clock. Humidity below is compensated for the
+    // total offset.
+    degCEnclosureOffset += bitclock_nvs_get_temp_offset_tenths() / 10.0f;
     degC = degC + degCEnclosureOffset;
 
     tempAvailable = true;
