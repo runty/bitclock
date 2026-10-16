@@ -55,7 +55,9 @@ void lv_helper_clock_update(lv_helper_view_mode_clock_data_t *data) {
   str_to_upper(time_sublabel_str);
 
   set_text_if_changed(time_label, time_label_str);
-  set_text_if_changed(time_sublabel, time_sublabel_str);
+  set_text_if_changed(time_sublabel, data->status[0] != '\0'
+                                         ? data->status
+                                         : time_sublabel_str);
 
   lv_helper_aqi_alert_update(&lv_helper_aqi_alert_data);
 }

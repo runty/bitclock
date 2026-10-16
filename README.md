@@ -22,8 +22,56 @@ Bitclock configurator at `/connect`.
 5. Enter MQTT broker credentials. Home Assistant long-lived access tokens are
    not MQTT credentials.
 
-The firmware publishes Home Assistant MQTT discovery config and state for
-temperature, humidity, CO2, VOC index, and NOx index sensors.
+The firmware publishes Home Assistant MQTT discovery for:
+
+- Sensors: temperature, humidity, CO2, VOC index, NOx index and the air quality
+  alert the display shows (`None`, `CO2`, `VOC`, `NOx`, `Humid`, `Dry`, ...).
+- Diagnostics: Wi-Fi signal, uptime, the last CO2 calibration correction, and
+  the firmware version on the device page.
+- Controls: a temperature offset (-10.0 to +10.0 °C, saved on the device and
+  applied to temperature with humidity compensated), a button that calibrates
+  CO2 to outdoor air (420 ppm), the clock face (Clock or Weather), and a status
+  line.
+
+Values are rounded (temperature and humidity to 0.1) and state is sent every 30
+seconds and right after any command.
+
+### Pushing data to the clock
+
+Topics are under `bitclock/<wifi mac, lower-case hex>/`:
+
+| Topic | Payload | Effect |
+| --- | --- | --- |
+| `status/set` | text, up to 24 characters | Replaces the date under the clock; empty restores it. Upper-cased; the font has A-Z, 0-9 and `. , : ; - + % ° / ! ? & ( ) # '`. Publish retained so it survives a reboot. |
+| `weather/set` | `{"high": 12, "low": 6, "condition": "rainy"}` | Forecast for the weather face, in Celsius with Home Assistant condition names. While one is less than 3 hours old the clock stops polling weather.gov (which only covers the US). Publish retained. |
+| `temperature_offset/set` | e.g. `-0.8` | Same as the Home Assistant number. |
+| `clock_face/set` | `Clock` or `Weather` | Same as the Home Assistant select. |
+| `co2_calibrate/press` | anything | Forced recalibration to 420 ppm. Put the clock in outdoor air (an open window) for a few minutes first; the sensor refuses until it has been measuring for 3 minutes. |
+
+A Home Assistant automation that keeps the weather face current:
+
+```yaml
+triggers:
+  - trigger: time_pattern
+    minutes: "/30"
+  - trigger: homeassistant
+    event: start
+actions:
+  - action: weather.get_forecasts
+    target:
+      entity_id: weather.forecast_home
+    data:
+      type: daily
+    response_variable: forecast
+  - action: mqtt.publish
+    data:
+      topic: bitclock/<mac>/weather/set
+      retain: true
+      payload: >-
+        {% set today = forecast['weather.forecast_home'].forecast[0] %}
+        {"high": {{ today.temperature }}, "low": {{ today.templow }},
+         "condition": "{{ today.condition }}"}
+```
 
 Known compatibility notes:
 

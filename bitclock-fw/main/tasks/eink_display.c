@@ -26,6 +26,7 @@
 #include "sgp4x.h"
 #include "sht4x.h"
 #include "tasks/ble.h"
+#include "tasks/home_assistant.h"
 #include "tasks/weather.h"
 #include "tasks/wifi.h"
 #include <math.h>
@@ -507,6 +508,9 @@ void eink_task_run(void *pvParameters) {
     bool fast_update = frame_count % 120 != 0;
 
     time(&lv_helper_view_mode_clock_data.curtime);
+    home_assistant_get_status_text(
+        lv_helper_view_mode_clock_data.status,
+        sizeof(lv_helper_view_mode_clock_data.status));
 
     bool celsius_mode =
         bitclock_nvs_get_temp_unit() == BITCLOCK_NVS_TEMP_UNIT_VAL_CELSIUS;
@@ -551,14 +555,21 @@ void eink_task_run(void *pvParameters) {
     lv_helper_view_mode_passkey_data.passkey = ble_active_passkey();
 
     lv_helper_view_mode_weather_data.icon = latest_weather.icon;
-    lv_helper_view_mode_weather_data.temp_high =
-        celsius_mode
-            ? (int16_t)roundf(fahrenheit_to_celsius(latest_weather.temp_max))
-            : latest_weather.temp_max;
-    lv_helper_view_mode_weather_data.temp_low =
-        celsius_mode
-            ? (int16_t)roundf(fahrenheit_to_celsius(latest_weather.temp_min))
-            : latest_weather.temp_min;
+    // weather.gov forecasts are Fahrenheit; Home Assistant's are Celsius.
+    if (celsius_mode == latest_weather.temp_celsius) {
+      lv_helper_view_mode_weather_data.temp_high = latest_weather.temp_max;
+      lv_helper_view_mode_weather_data.temp_low = latest_weather.temp_min;
+    } else if (celsius_mode) {
+      lv_helper_view_mode_weather_data.temp_high =
+          (int16_t)roundf(fahrenheit_to_celsius(latest_weather.temp_max));
+      lv_helper_view_mode_weather_data.temp_low =
+          (int16_t)roundf(fahrenheit_to_celsius(latest_weather.temp_min));
+    } else {
+      lv_helper_view_mode_weather_data.temp_high =
+          (int16_t)roundf(celsius_to_fahrenheit(latest_weather.temp_max));
+      lv_helper_view_mode_weather_data.temp_low =
+          (int16_t)roundf(celsius_to_fahrenheit(latest_weather.temp_min));
+    }
 
     if (lv_helper_view_mode_passkey_data.passkey != PASSKEY_NOT_ACTIVE) {
       lv_helper_set_view_mode(VIEW_MODE_PASSKEY);

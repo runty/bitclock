@@ -16,6 +16,30 @@ static StaticEventGroup_t weather_event_group;
 
 wifi_weather_t latest_weather;
 
+// When Home Assistant last pushed a forecast (0 = never).
+static time_t home_assistant_weather_at = 0;
+
+static bool home_assistant_weather_is_fresh() {
+  if (home_assistant_weather_at == 0) {
+    return false;
+  }
+  time_t now;
+  time(&now);
+  return now - home_assistant_weather_at < WEATHER_HOME_ASSISTANT_FRESH_S;
+}
+
+void weather_set_from_home_assistant(int16_t high_c, int16_t low_c,
+                                     weather_icon_t icon) {
+  latest_weather.temp_celsius = true;
+  latest_weather.temp_max = high_c;
+  latest_weather.temp_min = low_c;
+  latest_weather.icon = icon;
+  time(&latest_weather.requested_at);
+  home_assistant_weather_at = latest_weather.requested_at;
+  ESP_LOGI(TAG, "Forecast from Home Assistant: %d/%d C, icon %d", high_c,
+           low_c, icon);
+}
+
 void weather_task_run(void *pvParameters) {
   weather_event_group_handle = xEventGroupCreateStatic(&weather_event_group);
   TickType_t delay_time = portMAX_DELAY;
@@ -29,6 +53,11 @@ void weather_task_run(void *pvParameters) {
                         true,  // clear = true
                         false, // wait for all = false
                         delay_time);
+
+    if (home_assistant_weather_is_fresh()) {
+      delay_time = pdMS_TO_TICKS(1000 * 60 * 30);
+      continue;
+    }
 
     const char *path = bitclock_nvs_get_weather_path();
 

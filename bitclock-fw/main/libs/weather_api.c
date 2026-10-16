@@ -353,6 +353,8 @@ esp_err_t parse_weather_response(char *response_buffer, wifi_weather_t *weather,
   ESP_LOGI(TAG, "Max temp: %" PRId16 ", Min temp: %" PRId16, weather->temp_max,
            weather->temp_min);
 
+  // weather.gov forecasts are Fahrenheit (Home Assistant's are not).
+  weather->temp_celsius = false;
   time(&weather->requested_at);
 
   cJSON_Delete(root);
