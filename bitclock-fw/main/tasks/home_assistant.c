@@ -219,8 +219,10 @@ static void publish_sensor_discovery(const ha_sensor_config_t *sensor) {
     return;
   }
   char value_template[MQTT_TOPIC_LEN] = {0};
-  snprintf(value_template, sizeof(value_template), "{{ value_json.%s }}",
-           sensor->state_field);
+  // default(None) renders "None", which Home Assistant's MQTT sensor treats as
+  // unknown; fields like co2_frc_correction are absent until they exist.
+  snprintf(value_template, sizeof(value_template),
+           "{{ value_json.%s | default(None) }}", sensor->state_field);
   cJSON_AddStringToObject(root, "state_topic", state_topic);
   cJSON_AddStringToObject(root, "value_template", value_template);
   cJSON_AddStringToObject(root, "state_class", "measurement");
